@@ -1,4 +1,4 @@
-# ADR-001: Deploy Intel from Monorepo Subfolder
+# ADR-001: Deploy Intel from Separate Repository
 
 **Status**: Accepted  
 **Date**: 2026-03-27  
@@ -6,51 +6,47 @@
 
 ## Context
 
-Noble Intel is a Python FastAPI service that runs on a dedicated VPS. The code currently lives at `docs/infrastructure/intel/` inside the main NobleVerse monorepo. We need to decide how to manage and deploy it.
+Noble Intel is a Python FastAPI service that runs on a dedicated VPS. Initially it lived at `docs/infrastructure/intel/` inside the main NobleVerse monorepo. It has been extracted to its own repository at `https://github.com/t0ttora/intel`.
 
 ## Decision Drivers
 
-- Minimize operational complexity
-- Enable automatic deployment on code changes
-- Keep code discoverable (intel docs + NextJS integration in one place)
-- Avoid maintaining a separate repo/CI pipeline until team/complexity warrants it
+- Independent deployment cycle (push to intel repo → auto-deploy, no noise in nobleverse CI)
+- Clean repo boundaries — Python service separate from NextJS app
+- Simpler CI/CD (no `paths:` filter needed — every push deploys)
+- The intel repo can be kept private independently of the main app
 
 ## Options Considered
 
-### Option A: Separate Git Repository
-
-- Intel gets its own repo (e.g. `nobleverse/noble-intel`)
-- Separate CI/CD pipeline
-- Independent release cycle
-
-**Pros**: Clean separation, independent versioning  
-**Cons**: Split context, two repos to maintain, separate PR process, harder to coordinate NextJS + Intel changes
-
-### Option B: Monorepo Subfolder (Selected)
+### Option A: Monorepo Subfolder
 
 - Intel stays at `docs/infrastructure/intel/`
-- GitHub Actions uses `paths:` filter to trigger deploy only on Intel changes
-- `setup-vps.sh` already supports `INTEL_PATH` parameter for subfolder extraction
+- GitHub Actions uses `paths:` filter
 
-**Pros**: Single repo, single PR for coordinated changes, no extra infrastructure  
-**Cons**: CI workflow needs path filter, monorepo grows in size
+**Pros**: Single PR for coordinated NextJS + Intel changes  
+**Cons**: CI path filtering complexity, monorepo grows, Python in a JS repo
+
+### Option B: Separate Repository (Selected)
+
+- Intel lives at `https://github.com/t0ttora/intel`
+- Every push to `main` triggers deploy
+- App code is at repo root — no path extraction needed
+
+**Pros**: Clean separation, simple CI, independent versioning  
+**Cons**: Cross-repo coordination requires two PRs for tightly coupled changes
 
 ## Decision
 
-**Option B: Monorepo subfolder.**
+**Option B: Separate repository at `t0ttora/intel`.**
 
-The `setup-vps.sh` script and `update.sh` already handle subfolder extraction via `rsync`. The GitHub Actions `paths:` filter ensures deploys only trigger on Intel changes. No infrastructure changes needed.
+The intel repo is the deployment unit. `setup-vps.sh` is called with `INTEL_PATH=.` since the code lives at root. GitHub Actions deploys on every push to `main` — no path filter needed.
 
 ## Consequences
 
-- GitHub Actions workflow uses `paths: ['docs/infrastructure/intel/**']` to scope deploys
-- Code changes to Intel and NextJS can be coordinated in a single PR
-- If Intel grows to need its own team or release cycle, extract to a separate repo at that point
+- GitHub Actions workflow in `t0ttora/intel` repo deploys on every push to `main`
+- `setup-vps.sh` prompt: GitHub repo = `https://github.com/t0ttora/intel.git`, path = `.`
+- NobleVerse monorepo keeps a copy of docs at `docs/infrastructure/intel/docs/` for cross-reference
 - The `.env`, `.venv`, `backup.sh`, and `update.sh` are excluded from rsync to preserve VPS-specific state
 
 ## Review Trigger
 
-Re-evaluate this decision when:
-- Intel has more than 2 regular contributors
-- Intel needs independent release versioning
-- Monorepo CI times become problematic due to Intel changes
+Re-evaluate if Intel needs to import shared types from the NextJS codebase directly.

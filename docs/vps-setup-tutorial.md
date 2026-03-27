@@ -101,7 +101,7 @@ If you don't have a domain, leave the domain prompt blank during setup — the A
 Switch back to your SSH Terminal window (logged in as root on the VPS).
 
 ```bash
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/nobleverse/main/docs/infrastructure/intel/setup-vps.sh
+curl -O https://raw.githubusercontent.com/t0ttora/intel/main/setup-vps.sh
 bash setup-vps.sh
 ```
 
@@ -109,10 +109,10 @@ The script will ask you several questions. Here's what to enter:
 
 ```
 GitHub repo URL (HTTPS clone URL):
-→ https://github.com/YOUR_USERNAME/nobleverse.git
+→ https://github.com/t0ttora/intel.git
 
 Path to intel code inside repo [docs/infrastructure/intel]:
-→ (just press Enter — the default is correct)
+→ .    ← type a dot and press Enter (code is at repo root now)
 
 Gemini API key:
 → AIzaSy... (paste your key from AI Studio)

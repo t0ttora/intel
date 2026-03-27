@@ -148,7 +148,12 @@ X11Forwarding no
 AllowUsers noble
 EOF
 
-systemctl restart sshd
+# Ubuntu 22.04+ uses 'ssh', older systems use 'sshd'
+if systemctl list-units --full --all | grep -q 'sshd.service'; then
+    systemctl restart sshd
+else
+    systemctl restart ssh
+fi
 log "SSH hardened (root login disabled, key-only auth)"
 warn "TEST SSH as 'noble' FROM ANOTHER TERMINAL before closing this session!"
 

@@ -34,23 +34,21 @@ Health check: curl http://127.0.0.1:8000/health
 
 ## GitHub Actions Workflow
 
-File: `.github/workflows/deploy-intel.yml`
+File: `.github/workflows/deploy.yml` (in the `t0ttora/intel` repo)
 
 ```yaml
-name: Deploy Intel
+name: Deploy
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'docs/infrastructure/intel/**'
 
 jobs:
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: intel-production
+    environment: production
 
     steps:
       - name: Checkout
@@ -66,9 +64,9 @@ jobs:
             set -euo pipefail
             cd /opt/noble-intel
 
-            # Pull latest code
+            # Pull latest code from intel repo (root = app code)
             TMPDIR=$(mktemp -d)
-            git clone --depth 1 https://github.com/${{ github.repository }}.git "$TMPDIR/repo"
+            git clone --depth 1 https://github.com/t0ttora/intel.git "$TMPDIR/repo"
 
             # Sync code — preserve secrets and runtime artifacts
             rsync -a --delete \
@@ -78,7 +76,7 @@ jobs:
               --exclude='setup-vps.sh' \
               --exclude='backup.sh' \
               --exclude='update.sh' \
-              "$TMPDIR/repo/docs/infrastructure/intel/" /opt/noble-intel/
+              "$TMPDIR/repo/" /opt/noble-intel/
 
             rm -rf "$TMPDIR"
 
@@ -97,7 +95,7 @@ jobs:
 
 ## Required GitHub Secrets
 
-Set in **Settings → Environments → `intel-production`**:
+Set in the **`t0ttora/intel` repo → Settings → Environments → `production`**:
 
 | Secret | Value | How to get it |
 |--------|-------|---------------|
@@ -122,6 +120,22 @@ ssh noble@YOUR_VPS_IP "cat >> ~/.ssh/authorized_keys" < ~/.ssh/intel-deploy.pub
 #   Value: intel.nobleverse.com (or raw IP)
 ```
 
+## Repository Structure
+
+The `t0ttora/intel` repo is standalone — the app code is at root:
+
+```
+intel/
+  app/          # FastAPI application
+  cli/          # NobleCLI
+  tests/        # Test suite
+  migrations/   # SQL migrations
+  docs/         # This documentation
+  setup-vps.sh  # One-time VPS provisioning
+  pyproject.toml
+  .env.example
+```
+
 ## What Gets Preserved on Deploy
 
 These files are **never overwritten** during auto-deploy:
@@ -143,7 +157,7 @@ If GitHub Actions fails or you need to deploy immediately:
 ssh noble@intel.nobleverse.com
 
 # Run the embedded update script
-/opt/noble-intel/update.sh https://github.com/YOUR_ORG/nobleverse.git docs/infrastructure/intel
+/opt/noble-intel/update.sh https://github.com/t0ttora/intel.git .
 ```
 
 ## Verifying a Deploy
