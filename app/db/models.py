@@ -43,6 +43,7 @@ class SignalCreate(BaseModel):
     geo_criticality: float | None = None
     time_decay: float | None = None
     embedding_id: str | None = None
+    content_hash: str | None = None
     expires_at: datetime | None = None
 
 

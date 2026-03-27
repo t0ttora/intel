@@ -33,10 +33,12 @@ async def insert_signal(conn: AsyncConnection, signal: SignalCreate) -> UUID:
             """
             INSERT INTO signals (source, tier, geo_zone, title, content, url,
                                  risk_score, anomaly_score, source_weight,
-                                 geo_criticality, time_decay, embedding_id, expires_at)
+                                 geo_criticality, time_decay, embedding_id,
+                                 content_hash, expires_at)
             VALUES (%(source)s, %(tier)s, %(geo_zone)s, %(title)s, %(content)s, %(url)s,
                     %(risk_score)s, %(anomaly_score)s, %(source_weight)s,
-                    %(geo_criticality)s, %(time_decay)s, %(embedding_id)s, %(expires_at)s)
+                    %(geo_criticality)s, %(time_decay)s, %(embedding_id)s,
+                    %(content_hash)s, %(expires_at)s)
             RETURNING id
             """,
             signal.model_dump(),
@@ -167,23 +169,24 @@ async def check_hash_exists(conn: AsyncConnection, content_hash: str) -> bool:
     """Check if a signal with this content hash already exists."""
     async with conn.cursor() as cur:
         await cur.execute(
-            """
-            SELECT EXISTS(
-                SELECT 1 FROM signals
-                WHERE md5(lower(regexp_replace(content, '\\s+', ' ', 'g'))) = %s
-            )
-            """,
+            "SELECT EXISTS(SELECT 1 FROM signals WHERE content_hash = %s)",
             (content_hash,),
         )
         row = await cur.fetchone()
         return bool(row and row[0])
 
 
-async def expire_old_signals(conn: AsyncConnection) -> int:
-    """Delete expired signals. Returns count of deleted rows."""
+async def expire_old_signals(conn: AsyncConnection, *, days: int = 30) -> int:
+    """Delete signals older than `days` or past their expires_at. Returns count of deleted rows."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     async with conn.cursor() as cur:
         await cur.execute(
-            "DELETE FROM signals WHERE expires_at IS NOT NULL AND expires_at < now()"
+            """
+            DELETE FROM signals
+            WHERE (expires_at IS NOT NULL AND expires_at < now())
+               OR created_at < %s
+            """,
+            (cutoff,),
         )
         count = cur.rowcount
         await conn.commit()

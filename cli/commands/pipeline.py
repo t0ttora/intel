@@ -20,7 +20,7 @@ def run_rss(
         from app.ingestion.rss import RSS_FEEDS
         console.print(f"[dim]Would ingest from {len(RSS_FEEDS)} feeds:[/dim]")
         for feed in RSS_FEEDS:
-            console.print(f"  - {feed['source']}: {feed['url']}")
+            console.print(f"  - {feed['name']} ({feed['source_key']}): {feed['url']}")
         return
 
     console.print("[yellow]Running RSS ingestion...[/yellow]")

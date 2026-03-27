@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from app.tasks.celery_app import celery_app
@@ -68,7 +69,7 @@ async def _ingest_scraper() -> dict:
 
             async with pool.connection() as conn:
                 from app.db.queries import get_source_weight
-                sw = await get_source_weight(conn, raw.source)
+                sw = await get_source_weight(conn, raw.source_key)
                 if sw:
                     source_weight = sw.current_weight
 
@@ -79,7 +80,7 @@ async def _ingest_scraper() -> dict:
                 time_decay_val=time_decay,
             )
             risk_score = risk_components.risk_score
-            tier = assign_tier(risk_score, raw.source)
+            tier = assign_tier(risk_score, raw.source_key)
 
             chunks = chunk_text(clean_content)
             texts_to_embed = [c.text for c in chunks[:3]]
@@ -93,7 +94,7 @@ async def _ingest_scraper() -> dict:
                     SignalCreate(
                         title=clean_title,
                         content=clean_content,
-                        source=raw.source,
+                        source=raw.source_key,
                         url=raw.url,
                         geo_zone=geo_zone,
                         risk_score=risk_score,
@@ -102,6 +103,7 @@ async def _ingest_scraper() -> dict:
                         geo_criticality=geo_crit,
                         time_decay=time_decay,
                         tier=tier,
+                        content_hash=hash_val,
                     ),
                 )
 
@@ -110,10 +112,10 @@ async def _ingest_scraper() -> dict:
                 for i, embedding in enumerate(embeddings):
                     if all(v == 0 for v in embedding):
                         continue
-                    point_id = f"{signal_id}_{i}"
+                    point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{signal_id}_{i}"))
                     payload = {
                         "signal_id": str(signal_id),
-                        "source": raw.source,
+                        "source": raw.source_key,
                         "geo_zone": geo_zone or "",
                         "risk_score": risk_score,
                         "tier": tier,

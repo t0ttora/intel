@@ -68,7 +68,7 @@ async def execute_query(
             settings.qdrant_collection,
             query,
             limit=20,
-            geo_zone=geo_zone,
+            geo_zone=None,  # Don't hard-filter — let semantic relevance decide
             min_risk_score=min_risk_score,
         )
     except Exception as exc:
@@ -76,7 +76,7 @@ async def execute_query(
         degradation_level = DegradationLevel.RAG_OFFLINE
         degraded_sources.append("qdrant")
 
-    # Fallback / supplement with PostgreSQL
+    # Fallback / supplement with PostgreSQL — try geo-specific first, then broader
     pg_signals = await get_signals(
         conn,
         geo_zone=geo_zone,
@@ -85,12 +85,39 @@ async def execute_query(
         limit=20,
     )
 
-    # Merge and deduplicate
+    # If geo-specific returns nothing, search without geo filter
+    if not pg_signals:
+        pg_signals = await get_signals(
+            conn,
+            geo_zone=None,
+            min_risk_score=min_risk_score or 0.3,
+            last_hours=72,
+            limit=20,
+        )
+
+    # Merge: start with PG signals, add Qdrant-only signal IDs
     all_signals = pg_signals  # PG signals have full model
+    if qdrant_results and not all_signals:
+        # Qdrant found matches but PG didn't — fetch signals by IDs from Qdrant hits
+        from app.db.queries import get_signal_by_id
+        from uuid import UUID
+        seen_ids = {s.id for s in all_signals}
+        for hit in qdrant_results[:10]:
+            sid_str = hit.get("signal_id") or (hit.get("payload", {}).get("signal_id"))
+            if sid_str:
+                try:
+                    sid = UUID(sid_str)
+                    if sid not in seen_ids:
+                        sig = await get_signal_by_id(conn, sid)
+                        if sig:
+                            all_signals.append(sig)
+                            seen_ids.add(sid)
+                except (ValueError, TypeError):
+                    pass
 
     if not all_signals:
-        # Check if we have any signals at all
-        pg_all = await get_signals(conn, geo_zone=geo_zone, last_hours=168, limit=10)
+        # Last resort: any recent signals at all (no geo, no risk filters)
+        pg_all = await get_signals(conn, last_hours=168, limit=10)
         if pg_all:
             all_signals = pg_all
             if degradation_level < DegradationLevel.HISTORICAL:
