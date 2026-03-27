@@ -142,10 +142,10 @@ else
     done
 fi
 
-# Create collection (no API key in local mode)
+# Create collection if it doesn't exist (idempotent — ignore 4xx if already exists)
 curl -sf -X PUT http://127.0.0.1:6333/collections/intel_signals \
     -H 'Content-Type: application/json' \
-    -d '{"vectors":{"size":768,"distance":"Cosine"},"on_disk_payload":true}' > /dev/null
+    -d '{"vectors":{"size":768,"distance":"Cosine"},"on_disk_payload":true}' > /dev/null 2>&1 || true
 
 log "Qdrant ready — http://127.0.0.1:6333"
 log "QDRANT_URL=http://127.0.0.1:6333  (no API key needed locally)"
