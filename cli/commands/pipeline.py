@@ -17,17 +17,20 @@ def run_rss(
 ) -> None:
     """Manually trigger RSS ingestion."""
     if dry_run:
-        from app.ingestion.rss import RSS_FEEDS
-        console.print(f"[dim]Would ingest from {len(RSS_FEEDS)} feeds:[/dim]")
-        for feed in RSS_FEEDS:
-            console.print(f"  - {feed['name']} ({feed['source_key']}): {feed['url']}")
+        from app.ingestion.sources import get_all_rss_sources
+
+        rss_sources = get_all_rss_sources()
+        console.print(f"[dim]Would ingest from {len(rss_sources)} feeds:[/dim]")
+        for source in rss_sources:
+            console.print(f"  - {source.name} ({source.source_key}): {source.url}")
         return
 
     console.print("[yellow]Running RSS ingestion...[/yellow]")
 
     async def _run():
-        from app.tasks.ingest_rss import _ingest_rss
-        return await _ingest_rss()
+        from app.tasks.ingest_rss import _ingest_tier2
+
+        return await _ingest_tier2()
 
     stats = asyncio.run(_run())
     console.print(Panel(
@@ -75,10 +78,10 @@ def run_full_pipeline() -> None:
     console.print("[yellow]Running full pipeline...[/yellow]")
 
     async def _run():
-        from app.tasks.ingest_rss import _ingest_rss
+        from app.tasks.ingest_rss import _ingest_tier2
         from app.tasks.ingest_scraper import _ingest_scraper
 
-        rss_stats = await _ingest_rss()
+        rss_stats = await _ingest_tier2()
         scraper_stats = await _ingest_scraper()
         return {"rss": rss_stats, "scraper": scraper_stats}
 

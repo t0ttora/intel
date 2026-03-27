@@ -306,6 +306,18 @@ CREATE TABLE IF NOT EXISTS outcomes (
 );
 SCHEMA
 
+# Ensure app user can read/write all current and future objects.
+sudo -u postgres psql noble_intel << 'GRANTS'
+GRANT USAGE ON SCHEMA public TO noble;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO noble;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO noble;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO noble;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO noble;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO noble;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON FUNCTIONS TO noble;
+GRANTS
+
 log "PostgreSQL 16 installed, noble_intel database + schema created"
 
 # ── Docker + Qdrant ─────────────────────────────────────────────────────────
