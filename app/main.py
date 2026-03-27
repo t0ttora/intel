@@ -95,8 +95,8 @@ async def health_check() -> dict:
 
 # ── Mount routers ────────────────────────────────────────────────────────
 
-from app.api.intel_router import router as intel_router  # noqa: E402
+from app.api.intel_router import intel_router  # noqa: E402
 from cli.server.router import cli_router  # noqa: E402
 
 app.include_router(intel_router, prefix="", tags=["intel"])
-app.include_router(cli_router, prefix="/cli", tags=["cli"])
+app.include_router(cli_router, prefix="", tags=["cli"])
