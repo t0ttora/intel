@@ -91,7 +91,7 @@ def system_health() -> None:
     async def _check():
         from app.db.pool import get_pool
         from app.config import get_settings
-        from app.vectordb.client import get_qdrant_client, get_collection_info
+        from app.vectordb.client import get_qdrant, get_collection_info
 
         results = {"db": False, "qdrant": False, "redis": False}
 
@@ -107,7 +107,7 @@ def system_health() -> None:
         # Check Qdrant
         try:
             settings = get_settings()
-            qdrant = get_qdrant_client()
+            qdrant = await get_qdrant()
             info = await get_collection_info(qdrant, settings.qdrant_collection)
             results["qdrant"] = info is not None
         except Exception:

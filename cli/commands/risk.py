@@ -34,12 +34,12 @@ def risk_score(
         anomaly_score=anomaly,
         source_weight=0.5,
         geo_criticality=geo_crit,
-        time_decay=time_decay,
+        time_decay_val=time_decay,
     )
-    tier = assign_tier(score)
+    tier = assign_tier(score.risk_score, source)
 
     console.print(Panel(
-        f"Risk: {format_risk_badge(score)}\n"
+        f"Risk: {format_risk_badge(score.risk_score)}\n"
         f"Tier: {tier}\n"
         f"Anomaly: {anomaly:.3f}\n"
         f"Geo Zone: {geo_zone or 'none detected'}\n"

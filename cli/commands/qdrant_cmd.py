@@ -18,10 +18,10 @@ def qdrant_info() -> None:
 
     async def _info():
         from app.config import get_settings
-        from app.vectordb.client import get_qdrant_client, get_collection_info
+        from app.vectordb.client import get_qdrant, get_collection_info
 
         settings = get_settings()
-        qdrant = get_qdrant_client()
+        qdrant = await get_qdrant()
         return await get_collection_info(qdrant, settings.qdrant_collection)
 
     info = asyncio.run(_info())
@@ -48,11 +48,11 @@ def qdrant_search(
 
     async def _search():
         from app.config import get_settings
-        from app.vectordb.client import get_qdrant_client
+        from app.vectordb.client import get_qdrant
         from app.vectordb.search import semantic_search
 
         settings = get_settings()
-        qdrant = get_qdrant_client()
+        qdrant = await get_qdrant()
         return await semantic_search(
             qdrant,
             settings.qdrant_collection,
@@ -90,10 +90,10 @@ def qdrant_stats() -> None:
 
     async def _stats():
         from app.config import get_settings
-        from app.vectordb.client import get_qdrant_client, get_collection_info
+        from app.vectordb.client import get_qdrant, get_collection_info
 
         settings = get_settings()
-        qdrant = get_qdrant_client()
+        qdrant = await get_qdrant()
         return await get_collection_info(qdrant, settings.qdrant_collection)
 
     info = asyncio.run(_stats())

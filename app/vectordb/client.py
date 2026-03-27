@@ -29,7 +29,7 @@ async def get_qdrant() -> AsyncQdrantClient:
         settings = get_settings()
         _client = AsyncQdrantClient(
             url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key,
+            api_key=settings.qdrant_api_key or None,
             timeout=30,
         )
     return _client
@@ -129,11 +129,11 @@ async def get_collection_info(
     info = await client.get_collection(collection_name=collection)
     return {
         "name": collection,
-        "vectors_count": info.vectors_count,
-        "points_count": info.points_count,
-        "segments_count": len(info.segments) if info.segments else 0,
+        "vectors_count": getattr(info, 'vectors_count', 0),
+        "points_count": getattr(info, 'points_count', 0),
+        "segments_count": len(info.segments) if hasattr(info, 'segments') and info.segments else 0,
         "status": info.status.value if info.status else "unknown",
-        "on_disk_payload": info.config.params.on_disk_payload if info.config else None,
+        "on_disk_payload": info.config.params.on_disk_payload if info.config and hasattr(info.config, 'params') else None,
     }
 
 

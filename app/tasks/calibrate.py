@@ -24,7 +24,7 @@ async def _calibrate_sources() -> dict:
         drifts = await detect_drifts(conn)
 
     drift_alerts = [
-        {"source": d.source_key, "delta": round(d.delta, 4), "severity": d.severity}
+        {"source": d.source, "delta": round(d.delta, 4), "direction": d.direction}
         for d in drifts
     ]
 

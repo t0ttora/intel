@@ -22,16 +22,16 @@ class Settings(BaseSettings):
 
     # Qdrant
     qdrant_url: str = Field(default="http://127.0.0.1:6333")
-    qdrant_api_key: str = Field(..., description="Qdrant API key")
+    qdrant_api_key: str = Field(default="", description="Qdrant API key (empty for local)")
     qdrant_collection: str = Field(default="intel_signals")
 
     # Redis
-    redis_password: str = Field(..., description="Redis password")
-    redis_url: str = Field(..., description="Redis connection URL")
+    redis_password: str = Field(default="", description="Redis password (empty for local)")
+    redis_url: str = Field(default="redis://127.0.0.1:6379/0", description="Redis connection URL")
 
     # Supabase
-    supabase_url: str = Field(..., description="Supabase project URL")
-    supabase_service_key: str = Field(..., description="Supabase service role key")
+    supabase_url: str = Field(default="", description="Supabase project URL (optional)")
+    supabase_service_key: str = Field(default="", description="Supabase service role key (optional)")
 
     # Intel API
     intel_api_key: str = Field(..., description="API key for authenticating requests")

@@ -51,7 +51,7 @@ def set_source_weight(
         from app.db.queries import update_source_weight
         pool = await get_pool()
         async with pool.connection() as conn:
-            await update_source_weight(conn, source, weight)
+            await update_source_weight(conn, source, new_weight=weight)
         return True
 
     asyncio.run(_set())

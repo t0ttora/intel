@@ -57,15 +57,36 @@ def compute_anomaly_score(
     return round(max(0.0, min(1.0, anomaly)), 4)
 
 
-def compute_text_anomaly(keyword_density: float, avg_density: float = 0.02) -> float:
+# Maritime/logistics keywords for density-based anomaly detection
+_ANOMALY_KEYWORDS = {
+    "disruption", "closure", "blockage", "delay", "congestion", "grounding",
+    "collision", "attack", "warning", "alert", "emergency", "sanctions",
+    "detention", "seizure", "piracy", "storm", "typhoon", "hurricane",
+    "strike", "port", "canal", "strait", "embargo", "shortage", "surge",
+    "diversion", "reroute", "idle", "backlog", "incident", "accident",
+}
+
+
+def _compute_keyword_density(text: str) -> float:
+    """Compute keyword density as fraction of words matching anomaly keywords."""
+    words = text.lower().split()
+    if not words:
+        return 0.0
+    matches = sum(1 for w in words if w.strip(".,;:!?()\"'") in _ANOMALY_KEYWORDS)
+    return matches / len(words)
+
+
+def compute_text_anomaly(text: str, avg_density: float = 0.02) -> float:
     """Compute anomaly score for text-based signals based on keyword density.
 
     Higher keyword density relative to average = more anomalous/relevant.
     """
+    keyword_density = _compute_keyword_density(text)
+
     if avg_density <= 0:
         return 0.5
 
-    ratio = keyword_density / avg_density
+    ratio = keyword_density / avg_density if avg_density > 0 else 0.0
 
     if ratio <= 1.0:
         return 0.1

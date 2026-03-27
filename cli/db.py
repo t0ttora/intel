@@ -10,7 +10,7 @@ from psycopg import AsyncConnection
 from app.config import get_settings
 from app.db.pool import get_pool
 from app.intelligence.query_pipeline import execute_query
-from app.vectordb.client import get_qdrant_client
+from app.vectordb.client import get_qdrant
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ async def run_local_query(
     """Run a full intelligence query in local mode."""
     settings = get_settings()
     pool = await get_pool()
-    qdrant = get_qdrant_client()
+    qdrant = await get_qdrant()
 
     async with pool.connection() as conn:
         result = await execute_query(
@@ -68,7 +68,7 @@ async def get_local_status() -> dict[str, Any]:
         logger.error(f"DB status check failed: {exc}")
 
     try:
-        qdrant = get_qdrant_client()
+        qdrant = await get_qdrant()
         from app.vectordb.client import get_collection_info
         info = await get_collection_info(qdrant, settings.qdrant_collection)
         status["qdrant_connected"] = True
@@ -103,7 +103,7 @@ async def get_local_signals(
 
     return [
         {
-            "id": s.id,
+            "id": str(s.id),
             "title": s.title,
             "source": s.source,
             "geo_zone": s.geo_zone,
@@ -125,9 +125,9 @@ async def get_local_source_weights() -> list[dict]:
 
     return [
         {
-            "source_key": w.source_key,
-            "weight": w.weight,
-            "last_calibrated": w.last_calibrated.isoformat() if w.last_calibrated else None,
+            "source": w.source,
+            "weight": w.current_weight,
+            "last_calibrated": w.last_calibrated_at.isoformat() if w.last_calibrated_at else None,
         }
         for w in weights
     ]

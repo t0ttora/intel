@@ -69,7 +69,7 @@ def format_source_weights_table(weights: list[dict[str, Any]]) -> Table:
         style = "bold red" if weight_val < 0.3 else ("bold green" if weight_val > 0.7 else "")
 
         table.add_row(
-            w.get("source_key", "—"),
+            w.get("source", "—"),
             Text(f"{weight_val:.3f}", style=style),
             w.get("last_calibrated", "—") or "never",
         )

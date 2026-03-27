@@ -18,7 +18,7 @@ from app.scoring.risk_scorer import compute_risk_score, classify_risk_level, ass
 from app.scoring.anomaly import compute_text_anomaly
 from app.scoring.geo_criticality import detect_geo_zone, get_geo_criticality
 from app.scoring.time_decay import compute_time_decay
-from app.vectordb.client import get_qdrant_client
+from app.vectordb.client import get_qdrant, upsert_vectors
 from app.vectordb.embedder import embed_texts
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ async def _ingest_rss() -> dict:
     """Async RSS ingestion pipeline."""
     settings = get_settings()
     pool = await get_pool()
-    qdrant = get_qdrant_client()
+    qdrant = await get_qdrant()
 
     stats = {"fetched": 0, "filtered": 0, "duplicated": 0, "injected": 0, "ingested": 0, "errors": 0}
 
@@ -80,15 +80,16 @@ async def _ingest_rss() -> dict:
                 from app.db.queries import get_source_weight
                 sw = await get_source_weight(conn, raw.source)
                 if sw:
-                    source_weight = sw.weight
+                    source_weight = sw.current_weight
 
-            risk_score = compute_risk_score(
+            risk_components = compute_risk_score(
                 anomaly_score=anomaly,
                 source_weight=source_weight,
                 geo_criticality=geo_crit,
-                time_decay=time_decay,
+                time_decay_val=time_decay,
             )
-            tier = assign_tier(risk_score)
+            risk_score = risk_components.risk_score
+            tier = assign_tier(risk_score, raw.source)
 
             # Embed
             chunks = chunk_text(clean_content)
@@ -99,14 +100,13 @@ async def _ingest_rss() -> dict:
             async with pool.connection() as conn:
                 from app.db.queries import insert_signal
                 from app.db.models import SignalCreate
-                signal = await insert_signal(
+                signal_id = await insert_signal(
                     conn,
                     SignalCreate(
                         title=clean_title,
                         content=clean_content,
                         source=raw.source,
                         url=raw.url,
-                        content_hash=hash_val,
                         geo_zone=geo_zone,
                         risk_score=risk_score,
                         anomaly_score=anomaly,
@@ -118,14 +118,14 @@ async def _ingest_rss() -> dict:
                 )
 
             # Upsert into Qdrant
-            if signal and embeddings:
-                from app.vectordb.client import upsert_vectors
+            if signal_id and embeddings:
+                from qdrant_client.models import PointStruct
                 for i, embedding in enumerate(embeddings):
                     if all(v == 0 for v in embedding):
                         continue
-                    point_id = f"{signal.id}_{i}"
+                    point_id = f"{signal_id}_{i}"
                     payload = {
-                        "signal_id": signal.id,
+                        "signal_id": str(signal_id),
                         "source": raw.source,
                         "geo_zone": geo_zone or "",
                         "risk_score": risk_score,
@@ -133,12 +133,15 @@ async def _ingest_rss() -> dict:
                         "created_at": datetime.now(timezone.utc).isoformat(),
                         "chunk_index": i,
                     }
+                    point = PointStruct(
+                        id=point_id,
+                        vector=embedding,
+                        payload=payload,
+                    )
                     await upsert_vectors(
                         qdrant,
                         settings.qdrant_collection,
-                        [point_id],
-                        [embedding],
-                        [payload],
+                        [point],
                     )
 
             stats["ingested"] += 1

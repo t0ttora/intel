@@ -94,16 +94,16 @@ def check_drift() -> None:
     table.add_column("Current", width=10, justify="right")
     table.add_column("Baseline", width=10, justify="right")
     table.add_column("Delta", width=10, justify="right")
-    table.add_column("Severity", width=12)
+    table.add_column("Direction", width=12)
 
     for d in drifts:
-        severity_style = "bold red" if d.severity == "HIGH" else "yellow"
+        dir_style = "bold red" if abs(d.delta) >= 0.30 else "yellow"
         table.add_row(
-            d.source_key,
+            d.source,
             f"{d.current_weight:.3f}",
-            f"{d.baseline_weight:.3f}",
-            f"{d.delta:.3f}",
-            f"[{severity_style}]{d.severity}[/{severity_style}]",
+            f"{d.base_weight:.3f}",
+            f"{d.delta:+.3f}",
+            f"[{dir_style}]{d.direction}[/{dir_style}]",
         )
 
     console.print(table)

@@ -17,7 +17,7 @@ from app.db.queries import (
     get_all_source_weights,
     get_active_alerts,
 )
-from app.vectordb.client import get_qdrant_client, get_collection_info
+from app.vectordb.client import get_qdrant, get_collection_info
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ async def get_cli_status() -> dict[str, Any]:
         logger.error(f"DB check failed: {exc}")
 
     try:
-        qdrant = get_qdrant_client()
+        qdrant = await get_qdrant()
         info = await get_collection_info(qdrant, settings.qdrant_collection)
         status["qdrant_connected"] = True
         status["qdrant_points"] = info.get("points_count", 0) if info else 0
@@ -99,9 +99,9 @@ async def get_cli_sources() -> dict[str, Any]:
     return {
         "sources": [
             {
-                "source_key": w.source_key,
-                "weight": w.weight,
-                "last_calibrated": w.last_calibrated.isoformat() if w.last_calibrated else None,
+                "source": w.source,
+                "weight": w.current_weight,
+                "last_calibrated": w.last_calibrated_at.isoformat() if w.last_calibrated_at else None,
             }
             for w in weights
         ]
@@ -142,15 +142,15 @@ async def handle_dashboard_ws(websocket: WebSocket) -> None:
                 ],
                 "active_alerts": [
                     {
-                        "id": a.id,
-                        "title": a.title,
+                        "id": str(a.id),
+                        "risk_level": a.risk_level,
                         "risk_score": a.risk_score,
-                        "alert_type": a.alert_type,
+                        "signal_id": str(a.signal_id) if a.signal_id else None,
                     }
                     for a in active_alerts
                 ],
                 "source_weights": [
-                    {"source_key": w.source_key, "weight": w.weight}
+                    {"source": w.source, "weight": w.current_weight}
                     for w in source_weights
                 ],
             }
