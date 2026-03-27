@@ -44,8 +44,8 @@ sleep 2
 /opt/homebrew/opt/postgresql@16/bin/psql postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='noble'" \
     | grep -q 1 || /opt/homebrew/opt/postgresql@16/bin/createuser -s noble 2>/dev/null || true
 
-/opt/homebrew/opt/postgresql@16/bin/psql -U noble -tc "SELECT 1 FROM pg_database WHERE datname='noble_intel'" \
-    | grep -q 1 || /opt/homebrew/opt/postgresql@16/bin/createdb -U noble noble_intel
+/opt/homebrew/opt/postgresql@16/bin/psql -U noble postgres -tc "SELECT 1 FROM pg_database WHERE datname='noble_intel'" \
+    | grep -q 1 || /opt/homebrew/opt/postgresql@16/bin/createdb -U noble noble_intel 2>/dev/null || true
 
 # Create schema
 /opt/homebrew/opt/postgresql@16/bin/psql -U noble noble_intel << 'SCHEMA'
@@ -120,20 +120,27 @@ log "DATABASE_URL=postgresql://noble@127.0.0.1:5432/noble_intel"
 # ── Qdrant ───────────────────────────────────────────────────────────────────
 step "Qdrant 1.13.2 (Docker)"
 
-docker rm -f qdrant-local 2>/dev/null || true
-docker run -d \
-    --name qdrant-local \
-    --restart unless-stopped \
-    -p 127.0.0.1:6333:6333 \
-    qdrant/qdrant:v1.13.2
+# Skip if Qdrant is already responding on port 6333
+if curl -sf http://127.0.0.1:6333/healthz > /dev/null 2>&1; then
+    warn "Qdrant already running on :6333 — skipping container start"
+else
+    docker rm -f qdrant-local 2>/dev/null || true
+    # Stop any other qdrant containers that may own the port
+    docker stop $(docker ps -q --filter "ancestor=qdrant/qdrant") 2>/dev/null || true
+    docker run -d \
+        --name qdrant-local \
+        --restart unless-stopped \
+        -p 127.0.0.1:6333:6333 \
+        qdrant/qdrant:v1.13.2
 
-echo -n "Waiting for Qdrant..."
-for i in {1..20}; do
-    if curl -sf http://127.0.0.1:6333/healthz > /dev/null 2>&1; then
-        echo " ready"; break
-    fi
-    echo -n "."; sleep 1
-done
+    echo -n "Waiting for Qdrant..."
+    for i in {1..20}; do
+        if curl -sf http://127.0.0.1:6333/healthz > /dev/null 2>&1; then
+            echo " ready"; break
+        fi
+        echo -n "."; sleep 1
+    done
+fi
 
 # Create collection (no API key in local mode)
 curl -sf -X PUT http://127.0.0.1:6333/collections/intel_signals \
