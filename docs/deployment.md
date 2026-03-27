@@ -87,11 +87,15 @@ tail -f /data/logs/celery-beat.log
 
 ## Updating
 
-After pushing new code to GitHub:
+### Automatic (Recommended)
+
+Every push to `main` that changes `docs/infrastructure/intel/**` triggers auto-deploy via GitHub Actions. See [ci-cd-auto-deploy.md](ci-cd-auto-deploy.md) for setup.
+
+### Manual (Fallback)
 
 ```bash
 # On the VPS, as noble user
-sudo -u noble /opt/noble-intel/update.sh https://github.com/t0ttora/intel.git
+/opt/noble-intel/update.sh https://github.com/YOUR_ORG/nobleverse.git docs/infrastructure/intel
 ```
 
 This pulls the latest code, reinstalls the package, and restarts all services.

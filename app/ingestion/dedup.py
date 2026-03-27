@@ -19,6 +19,16 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(normalized.encode()).hexdigest()
 
 
+def url_vector_id(url: str, chunk_index: int = 0) -> str:
+    """Deterministic vector ID from URL + chunk index.
+
+    Uses MD5 hex digest. Same URL always produces the same vector ID,
+    so Qdrant upsert naturally deduplicates on re-ingestion.
+    """
+    key = f"{url.strip()}::{chunk_index}"
+    return hashlib.md5(key.encode()).hexdigest()
+
+
 async def is_duplicate(
     text: str,
     embedding: list[float],

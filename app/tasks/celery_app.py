@@ -1,4 +1,10 @@
-"""Celery app configuration with beat schedule."""
+"""Celery app configuration with tiered beat schedule.
+
+Tier 1: Every 15 min — live physical data, terminal gates, pricing APIs
+Tier 2: Every 1 hour — news RSS, chokepoint status, pricing feeds
+Tier 3: Every 5 min  — social intelligence (impact-filtered Reddit/forums)
+Tier 4: Daily         — regulatory, customs, embargoes
+"""
 from __future__ import annotations
 
 from celery import Celery
@@ -13,11 +19,15 @@ celery_app = Celery(
     broker=settings.redis_url,
     backend=settings.redis_url,
     include=[
+        "app.tasks.ingest_tier1",
         "app.tasks.ingest_rss",
         "app.tasks.ingest_scraper",
+        "app.tasks.ingest_social",
+        "app.tasks.ingest_regulatory",
         "app.tasks.alert_check",
         "app.tasks.calibrate",
         "app.tasks.cleanup",
+        "app.tasks.event_pipeline",
     ],
 )
 
@@ -36,20 +46,46 @@ celery_app.conf.update(
 )
 
 celery_app.conf.beat_schedule = {
-    # RSS ingestion every 5 minutes
-    "ingest-rss-every-5m": {
+    # ═══════════════════════════════════════════════════════════════════════
+    #  TIER 1 — Live Physical Data, Pricing, GEOINT, Cyber (every 15 min)
+    # ═══════════════════════════════════════════════════════════════════════
+    "tier1-live-every-15m": {
+        "task": "app.tasks.ingest_tier1.ingest_tier1_task",
+        "schedule": 900.0,  # 15 minutes
+    },
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  TIER 2 — News, Chokepoints, Pricing RSS (every 1 hour)
+    # ═══════════════════════════════════════════════════════════════════════
+    "tier2-rss-every-1h": {
         "task": "app.tasks.ingest_rss.ingest_rss_task",
+        "schedule": 3600.0,  # 1 hour
+    },
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  TIER 3 — Social Intelligence (every 5 min, impact-filtered)
+    # ═══════════════════════════════════════════════════════════════════════
+    "tier3-social-every-5m": {
+        "task": "app.tasks.ingest_social.ingest_social_task",
         "schedule": 300.0,  # 5 minutes
     },
-    # Scraper every 30 minutes
-    "ingest-scraper-every-30m": {
-        "task": "app.tasks.ingest_scraper.ingest_scraper_task",
-        "schedule": 1800.0,  # 30 minutes
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  TIER 4 — Regulatory (daily at 06:00 UTC)
+    # ═══════════════════════════════════════════════════════════════════════
+    "tier4-regulatory-daily": {
+        "task": "app.tasks.ingest_regulatory.ingest_regulatory_task",
+        "schedule": crontab(hour=6, minute=0),
     },
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  SYSTEM TASKS (unchanged)
+    # ═══════════════════════════════════════════════════════════════════════
+
     # Alert check every minute
     "check-alerts-every-1m": {
         "task": "app.tasks.alert_check.check_alerts_task",
-        "schedule": 60.0,  # 1 minute
+        "schedule": 60.0,
     },
     # Source weight calibration — weekly Monday 03:00 UTC
     "calibrate-sources-weekly": {
@@ -70,5 +106,13 @@ celery_app.conf.beat_schedule = {
     "cleanup-expired-daily": {
         "task": "app.tasks.cleanup.cleanup_expired_task",
         "schedule": crontab(hour=2, minute=0),
+    },
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  DECISION ENGINE — Event Fusion Pipeline (every 15 min)
+    # ═══════════════════════════════════════════════════════════════════════
+    "event-pipeline-every-15m": {
+        "task": "app.tasks.event_pipeline.run_event_pipeline_task",
+        "schedule": 900.0,  # 15 minutes — aligned with Tier 1 ingestion
     },
 }

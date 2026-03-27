@@ -80,6 +80,7 @@ async def search_vectors(
     tier: str | None = None,
     geo_zone: str | None = None,
     min_risk_score: float | None = None,
+    transport_mode: str | None = None,
 ) -> list[dict[str, Any]]:
     """Search vectors with optional payload filters."""
     must_conditions: list[FieldCondition] = []
@@ -99,6 +100,10 @@ async def search_vectors(
     if min_risk_score is not None:
         must_conditions.append(
             FieldCondition(key="risk_score", range=Range(gte=min_risk_score))
+        )
+    if transport_mode:
+        must_conditions.append(
+            FieldCondition(key="transport_mode", match=MatchValue(value=transport_mode))
         )
 
     search_filter = Filter(must=must_conditions) if must_conditions else None

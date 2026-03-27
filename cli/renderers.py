@@ -159,12 +159,14 @@ def _render_sources(sources: list[dict], console: Console) -> None:
     table = Table(title="Sources", show_lines=False, padding=(0, 1))
     table.add_column("Type", width=15)
     table.add_column("Weight", width=8, justify="right")
-    table.add_column("URL", max_width=50)
+    table.add_column("Title", max_width=40)
+    table.add_column("URL", no_wrap=True, overflow="fold")
 
-    for s in sources[:5]:
+    for s in sources[:8]:
         table.add_row(
             s.get("type", "—"),
             f"{s.get('weight', 0):.3f}",
+            (s.get("title", "") or "—")[:40],
             s.get("url", "—") or "—",
         )
 

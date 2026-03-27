@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import logging
-import math
-import random
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -61,6 +59,12 @@ SCENARIO_CONFIGS: dict[str, dict] = {
         "delay_base": {"p10": 2, "p50": 4, "p90": 8},
         "cost_base": {"p10": 300, "p50": 700, "p90": 1300},
         "description": "Carrier operational change — blank sailings, service restructuring",
+    },
+    "labor": {
+        "base_reroute_prob": 0.50,
+        "delay_base": {"p10": 3, "p50": 7, "p90": 21},
+        "cost_base": {"p10": 500, "p50": 1000, "p90": 2500},
+        "description": "Labor disruption — port strike, work stoppage, or union action causing operational shutdown",
     },
 }
 

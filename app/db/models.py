@@ -14,6 +14,7 @@ class Signal(BaseModel):
     id: UUID
     source: str
     tier: str
+    source_type: str | None = None  # news, official, social, physical, pricing
     geo_zone: str | None = None
     title: str | None = None
     content: str
@@ -23,7 +24,10 @@ class Signal(BaseModel):
     source_weight: float | None = None
     geo_criticality: float | None = None
     time_decay: float | None = None
+    reliability_score: float | None = None
     embedding_id: str | None = None
+    transport_mode: str | None = None
+    region: str | None = None
     created_at: datetime
     expires_at: datetime | None = None
 
@@ -33,6 +37,7 @@ class SignalCreate(BaseModel):
 
     source: str
     tier: str
+    source_type: str | None = None  # news, official, social, physical, pricing
     geo_zone: str | None = None
     title: str | None = None
     content: str
@@ -42,8 +47,11 @@ class SignalCreate(BaseModel):
     source_weight: float | None = None
     geo_criticality: float | None = None
     time_decay: float | None = None
+    reliability_score: float | None = None
     embedding_id: str | None = None
     content_hash: str | None = None
+    transport_mode: str | None = None
+    region: str | None = None
     expires_at: datetime | None = None
 
 

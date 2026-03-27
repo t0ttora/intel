@@ -22,6 +22,8 @@ async def semantic_search(
     tier: str | None = None,
     geo_zone: str | None = None,
     min_risk_score: float | None = None,
+    transport_mode: str | None = None,
+    score_threshold: float | None = None,
 ) -> list[dict[str, Any]]:
     """Run a semantic search: embed query → search Qdrant with filters."""
     query_vector = await embed_single(query)
@@ -35,6 +37,8 @@ async def semantic_search(
         tier=tier,
         geo_zone=geo_zone,
         min_risk_score=min_risk_score,
+        transport_mode=transport_mode,
+        score_threshold=score_threshold,
     )
 
     logger.info(

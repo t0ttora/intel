@@ -1,42 +1,44 @@
-"""RSS/Atom feed listener — fetches, parses, yields raw signals."""
+"""RSS/Atom feed listener — fetches, parses, yields raw signals.
+
+Uses the central source registry for feed configuration.
+"""
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import AsyncGenerator
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 
 import feedparser
 import httpx
 
+from app.ingestion.sources import ALLOWED_DOMAINS, Source, get_all_rss_sources, get_tier4_rss_sources
+
 logger = logging.getLogger(__name__)
 
-RSS_FEEDS: list[dict[str, str]] = [
-    {"name": "Lloyd's List", "url": "https://lloydslist.maritimeintelligence.informa.com/rss", "source_key": "tier1_news"},
-    {"name": "TradeWinds", "url": "https://www.tradewindsnews.com/rss", "source_key": "tier1_news"},
-    {"name": "Freightos Blog", "url": "https://www.freightos.com/blog/feed/", "source_key": "freight_index"},
-    {"name": "IMO News", "url": "https://www.imo.org/en/MediaCentre/Pages/WhatsNew.aspx", "source_key": "imo"},
-    {"name": "UKMTO", "url": "https://www.ukmto.org/indian-ocean/rss", "source_key": "ukmto"},
-    {"name": "gCaptain", "url": "https://gcaptain.com/feed/", "source_key": "tier1_news"},
-    {"name": "Splash247", "url": "https://splash247.com/feed/", "source_key": "general_news"},
-    {"name": "Maritime Executive", "url": "https://maritime-executive.com/rss", "source_key": "general_news"},
-    {"name": "Hellenic Shipping News", "url": "https://www.hellenicshippingnews.com/feed/", "source_key": "general_news"},
-    {"name": "Seatrade Maritime", "url": "https://www.seatrade-maritime.com/rss.xml", "source_key": "general_news"},
-]
 
-# Allowlisted domains for URL fetching — security: never follow arbitrary URLs
-ALLOWED_DOMAINS: set[str] = {
-    "lloydslist.maritimeintelligence.informa.com",
-    "www.tradewindsnews.com",
-    "www.freightos.com",
-    "www.imo.org",
-    "www.ukmto.org",
-    "gcaptain.com",
-    "splash247.com",
-    "maritime-executive.com",
-    "www.hellenicshippingnews.com",
-    "www.seatrade-maritime.com",
-}
+class _HTMLStripper(HTMLParser):
+    """Minimal HTML tag stripper using stdlib only."""
+
+    def __init__(self):
+        super().__init__()
+        self._parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(data)
+
+    def get_text(self) -> str:
+        return " ".join(self._parts)
+
+
+def strip_html(text: str) -> str:
+    """Strip HTML tags and collapse whitespace."""
+    stripper = _HTMLStripper()
+    stripper.feed(text)
+    cleaned = stripper.get_text()
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 @dataclass
@@ -49,6 +51,10 @@ class RawSignal:
     source_key: str
     feed_name: str
     published_at: datetime | None
+    # New metadata from source registry
+    source_type: str = "news"
+    modes: list[str] | None = None
+    reliability: float = 0.5
 
 
 def _parse_published(entry: dict) -> datetime | None:
@@ -63,12 +69,18 @@ def _parse_published(entry: dict) -> datetime | None:
     return None
 
 
-async def fetch_feed(feed: dict[str, str], timeout: float = 30.0) -> list[RawSignal]:
-    """Fetch and parse a single RSS/Atom feed."""
-    url = feed["url"]
-    name = feed["name"]
-    source_key = feed["source_key"]
+async def fetch_feed(source: Source, timeout: float = 30.0) -> list[RawSignal]:
+    """Fetch and parse a single RSS/Atom feed using source registry metadata."""
+    url = source.url
+    name = source.name
+    source_key = source.source_key
     signals: list[RawSignal] = []
+
+    # Enforce domain allowlist
+    hostname = urlparse(url).hostname
+    if hostname and hostname not in ALLOWED_DOMAINS:
+        logger.warning(f"Blocked fetch to non-allowlisted domain: {hostname}")
+        return []
 
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
@@ -78,10 +90,10 @@ async def fetch_feed(feed: dict[str, str], timeout: float = 30.0) -> list[RawSig
         parsed = feedparser.parse(response.text)
 
         for entry in parsed.entries:
-            title = entry.get("title", "").strip()
+            title = strip_html(entry.get("title", ""))
             # Prefer summary over full content for initial signal
-            content = entry.get("summary", "") or entry.get("description", "") or ""
-            content = content.strip()
+            raw_content = entry.get("summary", "") or entry.get("description", "") or ""
+            content = strip_html(raw_content)
             entry_url = entry.get("link", "")
 
             if not content:
@@ -95,6 +107,9 @@ async def fetch_feed(feed: dict[str, str], timeout: float = 30.0) -> list[RawSig
                     source_key=source_key,
                     feed_name=name,
                     published_at=_parse_published(entry),
+                    source_type=source.source_type,
+                    modes=source.modes,
+                    reliability=source.reliability,
                 )
             )
 
@@ -111,12 +126,38 @@ async def fetch_feed(feed: dict[str, str], timeout: float = 30.0) -> list[RawSig
 
 
 async def fetch_all_feeds() -> list[RawSignal]:
-    """Fetch all configured RSS feeds and return raw signals."""
+    """Fetch all Tier 2 RSS feeds concurrently and return raw signals."""
+    import asyncio
+
+    sources = get_all_rss_sources()
+    tasks = [fetch_feed(source) for source in sources]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
     all_signals: list[RawSignal] = []
+    for source, result in zip(sources, results):
+        if isinstance(result, Exception):
+            logger.error(f"Feed {source.name} failed: {result}")
+            continue
+        all_signals.extend(result)
 
-    for feed in RSS_FEEDS:
-        signals = await fetch_feed(feed)
-        all_signals.extend(signals)
+    logger.info(f"Total raw signals from {len(sources)} feeds: {len(all_signals)}")
+    return all_signals
 
-    logger.info(f"Total raw signals from all feeds: {len(all_signals)}")
+
+async def fetch_regulatory_feeds() -> list[RawSignal]:
+    """Fetch Tier 4 regulatory RSS feeds (daily cadence)."""
+    import asyncio
+
+    sources = get_tier4_rss_sources()
+    tasks = [fetch_feed(source) for source in sources]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    all_signals: list[RawSignal] = []
+    for source, result in zip(sources, results):
+        if isinstance(result, Exception):
+            logger.error(f"Regulatory feed {source.name} failed: {result}")
+            continue
+        all_signals.extend(result)
+
+    logger.info(f"Total regulatory signals from {len(sources)} feeds: {len(all_signals)}")
     return all_signals

@@ -278,12 +278,13 @@ def _build_user_impact(
 
 
 def _build_sources(signals: list[Signal]) -> list[dict[str, Any]]:
-    """Build the sources block with type, weight, and URL."""
+    """Build the sources block with type, weight, URL, and title."""
     sources: list[dict[str, Any]] = []
     for s in signals:
         entry: dict[str, Any] = {
             "type": s.source,
             "weight": round(s.source_weight or 0, 3),
+            "title": s.title or "",
         }
         if s.url:
             entry["url"] = s.url

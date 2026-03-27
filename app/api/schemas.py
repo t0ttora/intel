@@ -149,3 +149,52 @@ class HealthResponse(BaseModel):
     qdrant_connected: bool
     signal_count: int
     uptime_seconds: float
+
+
+# ── Event Response Schemas ────────────────────────────────────────────────
+
+
+class EventDecisionResponse(BaseModel):
+    """A single decision for an event."""
+
+    decision: str
+    reason: str
+    urgency: str
+    confidence: float
+
+
+class EventCascadeResponse(BaseModel):
+    """A single cascade effect."""
+
+    zone: str
+    description: str
+    propagated_risk: float
+    hop: int
+    time_horizon_hours: str
+
+
+class EventResponse(BaseModel):
+    """Full event in event list/detail response."""
+
+    event_id: str
+    title: str
+    summary: str
+    impact_score: float
+    priority: str
+    transport_modes: list[str]
+    regions: list[str]
+    confidence: float
+    signal_count: int
+    source_diversity: int
+    decisions: list[EventDecisionResponse] = Field(default_factory=list)
+    cascade_effects: list[EventCascadeResponse] = Field(default_factory=list)
+    status: str
+    start_time: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class EventsListResponse(BaseModel):
+    """GET /events response."""
+
+    events: list[EventResponse]
+    total: int

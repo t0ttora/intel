@@ -17,6 +17,17 @@ logger = logging.getLogger(__name__)
 CRITICAL_THRESHOLD = 0.80
 
 
+async def _signal_already_alerted(conn: AsyncConnection, signal_id) -> bool:
+    """Check if an alert already exists for this signal (dedup)."""
+    async with conn.cursor() as cur:
+        await cur.execute(
+            "SELECT EXISTS(SELECT 1 FROM alerts WHERE signal_id = %s)",
+            (signal_id,),
+        )
+        row = await cur.fetchone()
+        return row[0] if row else False
+
+
 async def check_and_push_alerts(conn: AsyncConnection) -> list[Alert]:
     """Check for new critical signals and push them as alerts.
 
@@ -42,6 +53,11 @@ async def check_and_push_alerts(conn: AsyncConnection) -> list[Alert]:
 
     for signal in critical_signals:
         try:
+            # Dedup: skip if we already alerted on this signal
+            if await _signal_already_alerted(conn, signal.id):
+                logger.debug(f"Skipping already-alerted signal {signal.id}")
+                continue
+
             # Create local alert record
             alert = await insert_alert(
                 conn,
