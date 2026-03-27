@@ -1,4 +1,4 @@
-"""Gemini text-embedding-004 batch embedder."""
+"""Gemini embedding — batch embedder."""
 from __future__ import annotations
 
 import logging
@@ -10,7 +10,7 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = "text-embedding-004"
+EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 768
 MAX_BATCH_SIZE = 100
 
@@ -44,6 +44,7 @@ async def embed_texts(texts: Sequence[str]) -> list[list[float]]:
             result = client.models.embed_content(
                 model=EMBEDDING_MODEL,
                 contents=batch,
+                config={"output_dimensionality": EMBEDDING_DIM},
             )
             batch_embeddings = [e.values for e in result.embeddings]
             all_embeddings.extend(batch_embeddings)
